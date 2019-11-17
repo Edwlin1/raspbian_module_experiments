@@ -33,7 +33,8 @@
     - +:test/**
     - -:test/support
   :source:
-    - src/**
+    #- kernel_mock
+    - ../raspbian_modules
   :support:
     - test/support
 

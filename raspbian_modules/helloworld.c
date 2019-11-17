@@ -6,17 +6,29 @@
  */
 
 #include <linux/module.h>
+#include "helloworld.h"
 
 static int __init hello_init(void)
 {
-	pr_info("Hello world init\n");
+	init_logic();
 	return 0;
+}
+
+void init_logic(void)
+{
+	pr_info("Hello world init\n");
 }
 
 static void __exit hello_exit(void)
 {
+	exit_logic();
+}
+
+void exit_logic(void)
+{
 	pr_info("Hello world exit\n");
 }
+
 
 module_init(hello_init);
 module_exit(hello_exit);
