@@ -10,14 +10,8 @@
 
 #include <bits/types/struct_timeval.h>
 
-typedef struct {
-	long sec;
-} test_struct_t;
-
 typedef struct timeval timeval_t;
 
 void do_gettimeofday(timeval_t* timeval);
-
-void do_testStruct(test_struct_t* testStruct);
 
 #endif /* TEST_SUPPORT_LINUX_TIME_H_ */

@@ -9,6 +9,7 @@
 #include <linux/time.h>
 #include "helloworld_timing.h"
 
+static struct timeval start_time;
 
 static int __init hello_init(void)
 {
@@ -18,7 +19,8 @@ static int __init hello_init(void)
 
 void init_logic(void)
 {
-	//pr_info("Hello world init\n");
+	do_gettimeofday(&start_time);
+	pr_info("Loading first!\n");
 }
 
 static void __exit hello_exit(void)
@@ -28,7 +30,9 @@ static void __exit hello_exit(void)
 
 void exit_logic(void)
 {
-	//pr_info("Hello world exit\n");
+	struct timeval end_time;
+	do_gettimeofday(&end_time);
+	pr_info("Unloading module after %ld seconds\n", end_time.tv_sec - start_time.tv_sec);
 }
 
 

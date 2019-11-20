@@ -18,6 +18,6 @@
 #define MODULE_AUTHOR(x)
 #define MODULE_DESCRIPTION(x)
 
-void pr_info(char*);
+void pr_info(char*, ...);
 
 #endif /* MODULE_H_ */
