@@ -8,7 +8,7 @@
 #ifndef HELLOWORLD_H_
 #define HELLOWORLD_H_
 
-void init_logic(void);
-void exit_logic(void);
+int inline init_logic(void);
+int inline exit_logic(void);
 
 #endif /* HELLOWORLD_H_ */
