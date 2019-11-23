@@ -8,21 +8,28 @@
 #include <linux/module.h>
 #include <linux/cdev.h>
 #include <linux/fs.h>
+#include <linux/device.h>
 #include "helloworld.h"
 
-#define HW_MAJOR_NUM	202
+#define DEVICE_NAME "HelloWorldDevice"
+#define CLASS_NAME "HelloClass"
 
-static dev_t dev;
-static struct cdev hw_device;
+#define FIRST_MINOR_NUMBER 0
+#define TOTAL_MINOR_NUMBERS 1
 
-static int hw_device_open(struct inode* inode, struct file* file);
-static int hw_device_close(struct inode* inode, struct file* file);
-static long hw_device_ioctl(struct file* file, unsigned int command, unsigned long argument);
-static const struct file_operations hw_file_operations = {
+static dev_t device_driver_number;
+static struct cdev character_device_handle;
+static struct device* p_device_node_handle;
+static struct class* p_device_class_handle;
+
+static int device_open(struct inode* inode, struct file* file);
+static int device_close(struct inode* inode, struct file* file);
+static long device_ioctl(struct file* file, unsigned int command, unsigned long argument);
+static const struct file_operations file_operations = {
 	.owner = THIS_MODULE,
-	.open = hw_device_open,
-	.release = hw_device_close,
-	.unlocked_ioctl = hw_device_ioctl,
+	.open = device_open,
+	.release = device_close,
+	.unlocked_ioctl = device_ioctl,
 };
 
 static int __init hello_init(void) {
@@ -30,21 +37,53 @@ static int __init hello_init(void) {
 }
 
 int inline init_logic(void) {
-	int ret;
-	dev = MKDEV(HW_MAJOR_NUM, 0);
-	ret = register_chrdev_region(dev, 1, "helloworld_device");
-	if (ret < 0) {
-		pr_info("HELLOWORLD ERROR: Unable to allocate major number: %d\n",
-				HW_MAJOR_NUM);
-		return ret;
+	int result_code, major, minor;
+
+	pr_info("HELLOWORLD MESSAGE: Entry\n");
+
+	//Allocate device driver numbers (Major & Minor)
+	result_code = alloc_chrdev_region(&device_driver_number, FIRST_MINOR_NUMBER,
+									  TOTAL_MINOR_NUMBERS, DEVICE_NAME);
+	if (result_code < 0) {
+		pr_info("HELLOWORLD ERROR: Unable to dynamically allocate device major and minor numbers\n");
+		return result_code;
 	}
 
-	cdev_init(&hw_device, &hw_file_operations);
-	ret = cdev_add(&hw_device, dev, 1);
-	if (ret < 0) {
-		unregister_chrdev_region(dev, 1);
-		pr_info("HELLOWORLD ERROR: Unable to add cdev\n");
-		return ret;
+	major = MAJOR(device_driver_number);
+	minor = MKDEV(major, FIRST_MINOR_NUMBER);
+	pr_info("HELLOWORLD MESSAGE: Received device id numbers major %d, minor %d",
+			major, minor);
+
+	//Create and register character device(s)
+	cdev_init(&character_device_handle, &file_operations);
+	result_code = cdev_add(&character_device_handle, device_driver_number, TOTAL_MINOR_NUMBERS);
+	if (result_code < 0) {
+		unregister_chrdev_region(device_driver_number, TOTAL_MINOR_NUMBERS);
+		pr_info("HELLOWORLD ERROR: Unable to register as character device, result code: %d\n",
+				result_code);
+		return result_code;
+	}
+
+	//Create device class
+	p_device_class_handle = class_create(THIS_MODULE, CLASS_NAME);
+	if(IS_ERR(p_device_class_handle)) {
+		cdev_del(&character_device_handle);
+		unregister_chrdev_region(device_driver_number, TOTAL_MINOR_NUMBERS);
+		pr_info("HELLOWORLD ERROR: Unable to register device class, returned address: %lu\n",
+				(long)p_device_class_handle);
+		return PTR_ERR(p_device_class_handle);
+	}
+
+	//Create device node
+	p_device_node_handle = device_create(p_device_class_handle, NULL, device_driver_number,
+										 NULL, DEVICE_NAME);
+	if(IS_ERR(p_device_node_handle)) {
+		class_destroy(p_device_class_handle);
+		cdev_del(&character_device_handle);
+		unregister_chrdev_region(device_driver_number, TOTAL_MINOR_NUMBERS);
+		pr_info("HELLOWORLD ERROR: Unable to create device node, returned address: %lu\n",
+				(long)p_device_node_handle);
+		return PTR_ERR(p_device_node_handle);
 	}
 
 	pr_info("HELLOWORLD MESSAGE: Started\n");
@@ -56,27 +95,29 @@ static void __exit hello_exit(void) {
 }
 
 int inline exit_logic(void) {
-	cdev_del(&hw_device);
-	unregister_chrdev_region(dev, 1);
-	pr_info("HELLOWORLD MESSAGE: Exiting\n");
+	device_destroy(p_device_class_handle, device_driver_number);
+	class_destroy(p_device_class_handle);
+	cdev_del(&character_device_handle);
+	unregister_chrdev_region(device_driver_number, TOTAL_MINOR_NUMBERS);
+	pr_info("HELLOWORLD MESSAGE: Exit\n");
 	return 0;
 }
 
-static int hw_device_open(struct inode* inode, struct file* file)
+static int device_open(struct inode* inode, struct file* file)
 {
-	pr_info("hw_device_open() was called\n");
+	pr_info("HELLOWORLD: device_open() was called\n");
 	return 0;
 }
 
-static int hw_device_close(struct inode* inode, struct file* file)
+static int device_close(struct inode* inode, struct file* file)
 {
-	pr_info("hw_device_close() was called\n");
+	pr_info("HELLOWORLD: device_close() was called\n");
 	return 0;
 }
 
-static long hw_device_ioctl(struct file* file, unsigned int command, unsigned long argument)
+static long device_ioctl(struct file* file, unsigned int command, unsigned long argument)
 {
-	pr_info("hw_device_ioctl() was called, command %d, argument %ld\n", command, argument);
+	pr_info("HELLOWORLD: device_ioctl() was called, command %d, argument %ld\n", command, argument);
 	return 0;
 }
 
@@ -86,6 +127,5 @@ module_exit(hello_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Edward Linderoth-Olson <edward.linderotholson@gmail.com>");
-MODULE_DESCRIPTION(
-		"Demonstration module that prints Hello world on entry and exit");
+MODULE_DESCRIPTION("Demonstration module");
 
