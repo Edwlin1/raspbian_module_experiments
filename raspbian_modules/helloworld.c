@@ -6,9 +6,8 @@
  */
 
 #include <linux/module.h>
-#include <linux/cdev.h>
+#include <linux/miscdevice.h>
 #include <linux/fs.h>
-#include <linux/device.h>
 #include "helloworld.h"
 
 #define DEVICE_NAME "HelloWorldDevice"
@@ -16,11 +15,6 @@
 
 #define FIRST_MINOR_NUMBER 0
 #define TOTAL_MINOR_NUMBERS 1
-
-static dev_t device_driver_number;
-static struct cdev character_device_handle;
-static struct device* p_device_node_handle;
-static struct class* p_device_class_handle;
 
 static int device_open(struct inode* inode, struct file* file);
 static int device_close(struct inode* inode, struct file* file);
@@ -32,75 +26,33 @@ static const struct file_operations file_operations = {
 	.unlocked_ioctl = device_ioctl,
 };
 
-static int __init hello_init(void) {
-	return init_logic();
-}
+static struct miscdevice miscdevice_handle = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = DEVICE_NAME,
+	.fops = &file_operations,
+};
 
-int inline init_logic(void) {
-	int result_code, major, minor;
+int __init hello_init(void) {
+	int result_code;
 
 	pr_info("HELLOWORLD MESSAGE: Entry\n");
 
-	//Allocate device driver numbers (Major & Minor)
-	result_code = alloc_chrdev_region(&device_driver_number, FIRST_MINOR_NUMBER,
-									  TOTAL_MINOR_NUMBERS, DEVICE_NAME);
-	if (result_code < 0) {
-		pr_info("HELLOWORLD ERROR: Unable to dynamically allocate device major and minor numbers\n");
-		return result_code;
-	}
-
-	major = MAJOR(device_driver_number);
-	minor = MKDEV(major, FIRST_MINOR_NUMBER);
-	pr_info("HELLOWORLD MESSAGE: Received device id numbers major %d, minor %d",
-			major, minor);
-
-	//Create and register character device(s)
-	cdev_init(&character_device_handle, &file_operations);
-	result_code = cdev_add(&character_device_handle, device_driver_number, TOTAL_MINOR_NUMBERS);
-	if (result_code < 0) {
-		unregister_chrdev_region(device_driver_number, TOTAL_MINOR_NUMBERS);
-		pr_info("HELLOWORLD ERROR: Unable to register as character device, result code: %d\n",
+	//Register device with the kernel
+	result_code = misc_register(&miscdevice_handle);
+	if (result_code != 0) {
+		pr_info("HELLOWORLD ERROR: Unable register miscellaneous device, result code: %d\n",
 				result_code);
 		return result_code;
 	}
 
-	//Create device class
-	p_device_class_handle = class_create(THIS_MODULE, CLASS_NAME);
-	if(IS_ERR(p_device_class_handle)) {
-		cdev_del(&character_device_handle);
-		unregister_chrdev_region(device_driver_number, TOTAL_MINOR_NUMBERS);
-		pr_info("HELLOWORLD ERROR: Unable to register device class, returned address: %lu\n",
-				(long)p_device_class_handle);
-		return PTR_ERR(p_device_class_handle);
-	}
-
-	//Create device node
-	p_device_node_handle = device_create(p_device_class_handle, NULL, device_driver_number,
-										 NULL, DEVICE_NAME);
-	if(IS_ERR(p_device_node_handle)) {
-		class_destroy(p_device_class_handle);
-		cdev_del(&character_device_handle);
-		unregister_chrdev_region(device_driver_number, TOTAL_MINOR_NUMBERS);
-		pr_info("HELLOWORLD ERROR: Unable to create device node, returned address: %lu\n",
-				(long)p_device_node_handle);
-		return PTR_ERR(p_device_node_handle);
-	}
-
-	pr_info("HELLOWORLD MESSAGE: Started\n");
+	pr_info("HELLOWORLD MESSAGE: Started, registered with minor: %d\n", miscdevice_handle.minor);
 	return 0;
 }
 
-static void __exit hello_exit(void) {
-	exit_logic();
-}
+void __exit hello_exit(void) {
+	misc_deregister(&miscdevice_handle);
 
-int inline exit_logic(void) {
-	device_destroy(p_device_class_handle, device_driver_number);
-	class_destroy(p_device_class_handle);
-	cdev_del(&character_device_handle);
-	unregister_chrdev_region(device_driver_number, TOTAL_MINOR_NUMBERS);
 	pr_info("HELLOWORLD MESSAGE: Exit\n");
-	return 0;
 }
 
 static int device_open(struct inode* inode, struct file* file)
