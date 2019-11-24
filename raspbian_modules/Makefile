@@ -8,6 +8,7 @@ all: $(BUILD_DIR_MAKEFILE)
 	make -C $(KERNEL_DIR) \
 	ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- \
 	M=$(BUILD_DIR) src=$(PWD) modules
+	echo $(CC)
 
 $(BUILD_DIR):
 	mkdir -p "$@"
